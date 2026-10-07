@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
+            --bg: #f8f9fa;
+            --card: #ffffff;
+            --text: #212529;
+        }
+
+        [data-bs-theme="dark"] {
+            --bg: #121212;
+            --card: #1e1e1e;
+            --text: #f8f9fa;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            transition: 0.3s;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin-top: 30px;
+        }
+
+        .card {
+            background-color: var(--card);
+            border: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-radius: 12px;
+        }
+
+        .search-box {
+            position: relative;
+        }
+
+            .search-box i {
+                position: absolute;
+                left: 15px;
+                top: 12px;
+                color: #6c757d;
+            }
+
+            .search-box input {
+                padding-left: 40px;
+                border-radius: 25px;
+            }
+    </style>
+</head>
+<body data-bs-theme="light">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fa-solid fa-users-viewfinder me-2"></i>User Manager</h2>
+            <button class="btn btn-outline-secondary" onclick="toggleDarkMode()">
+                <i id="themeIcon" class="fa-solid fa-moon"></i>
+            </button>
+        </div>
+
+        <div class="search-box mb-4">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="searchInput" class="form-control form-control-lg shadow-sm" placeholder="Search by name or email..." onkeyup="filterUsers()">
+        </div>
+
+        <div class="card p-4 mb-4">
+            <h5 id="formTitle" class="mb-3">Add New User</h5>
+            <input type="hidden" id="userId">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" id="fullName" class="form-control" placeholder="John Doe">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" id="email" class="form-control" placeholder="name@example.com">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Birth Date</label>
+                    <input type="date" id="birthDate" class="form-control">
+                </div>
+                <div class="col-12 mt-4 text-center">
+                    <button id="saveBtn" class="btn btn-primary px-5 py-2 shadow-sm" onclick="handleSave()">
+                        <i class="fa-solid fa-paper-plane me-2"></i>Save User
+                    </button>
+                    <button id="cancelBtn" class="btn btn-link d-none" onclick="resetForm()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm overflow-hidden">
+            <table class="table table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th class="ps-4">Full Name</th>
+                        <th>Email</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/users';
+        let allUsers = []; // Local copy for searching
+
+        function toggleDarkMode() {
+            const body = document.body;
+            const icon = document.getElementById('themeIcon');
+            const isDark = body.getAttribute('data-bs-theme') === 'dark';
+            body.setAttribute('data-bs-theme', isDark ? 'light' : 'dark');
+            icon.className = isDark ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+        }
+
+        async function loadUsers() {
+            const res = await fetch(API_URL);
+            allUsers = await res.json();
+            renderTable(allUsers);
+        }
+
+        // Search Logic
+        function filterUsers() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allUsers.filter(u =>
+                u.fullName.toLowerCase().includes(term) ||
+                u.email.toLowerCase().includes(term)
+            );
+            renderTable(filtered);
+        }
+
+        function renderTable(data) {
+            const body = document.getElementById('userTableBody');
+            body.innerHTML = '';
+            data.forEach(u => {
+                body.innerHTML += `
+                    <tr class="align-middle">
+                        <td class="ps-4"><strong>${u.fullName}</strong></td>
+                        <td class="text-muted">${u.email}</td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-warning btn-sm me-1" onclick='editUser(${JSON.stringify(u)})'>Edit</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">Delete</button>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        function validate(user) {
+            if (!user.fullName.trim()) return "Name is required.";
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) return "Invalid email.";
+            if (!user.birthDate) return "Date is required.";
+            if (new Date(user.birthDate) > new Date()) return "Date cannot be in future.";
+            return null;
+        }
+
+        async function handleSave() {
+            const id = document.getElementById('userId').value;
+            const user = {
+                id: id ? parseInt(id) : 0,
+                fullName: document.getElementById('fullName').value,
+                email: document.getElementById('email').value,
+                birthDate: document.getElementById('birthDate').value
+            };
+
+            const err = validate(user);
+            if (err) {
+                Swal.fire({ icon: 'error', title: 'Validation Error', text: err });
+                return;
+            }
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `${API_URL}/${id}` : API_URL;
+
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(user)
+            });
+
+            if (response.ok) {
+                Swal.fire({ icon: 'success', title: 'Success!', text: id ? 'User updated.' : 'User added.', timer: 2000, showConfirmButton: false });
+                resetForm();
+                await loadUsers();
+            } else {
+                const msg = await response.text();
+                Swal.fire({ icon: 'error', title: 'Save Failed', text: msg || 'Duplicate email?' });
+            }
+        }
+
+        function editUser(user) {
+            document.getElementById('formTitle').innerText = "Update User Info";
+            document.getElementById('userId').value = user.id;
+            document.getElementById('fullName').value = user.fullName;
+            document.getElementById('email').value = user.email;
+            document.getElementById('birthDate').value = user.birthDate.split('T')[0];
+            document.getElementById('saveBtn').innerHTML = '<i class="fa-solid fa-check me-2"></i>Update User';
+            document.getElementById('cancelBtn').classList.remove('d-none');
+            window.scrollTo(0, 0);
+        }
+
+        function resetForm() {
+            document.getElementById('formTitle').innerText = "Add New User";
+            document.getElementById('userId').value = '';
+            document.getElementById('fullName').value = '';
+            document.getElementById('email').value = '';
+            document.getElementById('birthDate').value = '';
+            document.getElementById('saveBtn').innerHTML = '<i class="fa-solid fa-paper-plane me-2"></i>Save User';
+            document.getElementById('cancelBtn').classList.add('d-none');
+        }
+
+        async function deleteUser(id) {
+            const result = await Swal.fire({
+                title: 'Are you sure?',
+                text: "This action cannot be undone!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Yes, delete it!'
+            });
+
+            if (result.isConfirmed) {
+                await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                loadUsers();
+                Swal.fire('Deleted!', 'User has been removed.', 'success');
+            }
+        }
+
+        loadUsers();
+    </script>
+</body>
+</html>c        
